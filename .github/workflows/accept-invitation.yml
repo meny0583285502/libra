@@ -1,0 +1,80 @@
+name: LibreLinkUp - Accept Invitation
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'כתובת מייל של חשבון ה-follower'
+        required: true
+        type: string
+      first_name:
+        description: 'שם פרטי לרישום (אם נדרש)'
+        required: false
+        default: 'User'
+        type: string
+      stage:
+        description: 'שלב הרצה: screenshot (רק צילום מסך ראשוני) / full (ניסיון אוטומציה מלא)'
+        required: true
+        default: 'screenshot'
+        type: choice
+        options:
+          - screenshot
+          - full
+
+jobs:
+  automate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download APK from latest Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download --pattern "*.apk" --output librelinkup.apk --clobber
+          ls -la librelinkup.apk
+
+      - name: Enable KVM (for emulator acceleration)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run emulator and install APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: |
+            echo "=== Emulator boot complete, installing APK ==="
+            adb devices
+            adb install -r librelinkup.apk
+            echo "=== Launching app ==="
+            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1
+            sleep 8
+            echo "=== Taking screenshot #1 (initial screen) ==="
+            adb exec-out screencap -p > screenshot_1_initial.png
+
+            if [ "${{ github.event.inputs.stage }}" = "full" ]; then
+              echo "=== Attempting to dump UI hierarchy for coordinates ==="
+              adb shell uiautomator dump /sdcard/window_dump.xml
+              adb pull /sdcard/window_dump.xml ui_dump_1.xml
+            fi
+
+            echo "=== Done ==="
+
+      - name: Upload screenshots and UI dump
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: librelinkup-debug-output
+          path: |
+            screenshot_*.png
+            ui_dump_*.xml
+          retention-days: 3
