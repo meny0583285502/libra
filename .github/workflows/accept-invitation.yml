@@ -58,15 +58,11 @@ jobs:
             echo "=== Launching app ==="
             adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1
             sleep 8
-            echo "=== Taking screenshot #1 (initial screen) ==="
+            echo "=== Taking screenshot 1 (initial screen) ==="
             adb exec-out screencap -p > screenshot_1_initial.png
-
-            if [ "${{ github.event.inputs.stage }}" = "full" ]; then
-              echo "=== Attempting to dump UI hierarchy for coordinates ==="
-              adb shell uiautomator dump /sdcard/window_dump.xml
-              adb pull /sdcard/window_dump.xml ui_dump_1.xml
-            fi
-
+            echo "=== Dumping UI hierarchy for coordinates ==="
+            adb shell uiautomator dump /sdcard/window_dump.xml
+            adb pull /sdcard/window_dump.xml ui_dump_1.xml
             echo "=== Done ==="
 
       - name: Upload screenshots and UI dump
