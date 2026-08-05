@@ -57,13 +57,14 @@ jobs:
             adb install -r librelinkup.apk
             echo "=== Rooting emulator and increasing heap limits ==="
             adb root
-            sleep 2
+            adb wait-for-device
+            sleep 3
             adb shell setprop dalvik.vm.heapgrowthlimit 512m
             adb shell setprop dalvik.vm.heapsize 1024m
             echo "=== Clearing logcat buffer ==="
             adb logcat -c
             echo "=== Launching app ==="
-            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1
+            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "monkey command failed, exit code $?"
             sleep 10
             echo "=== Taking screenshot 1 (initial screen) ==="
             adb exec-out screencap -p > screenshot_1_initial.png
