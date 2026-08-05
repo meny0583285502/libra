@@ -39,31 +39,16 @@ jobs:
             ls -la *.apk *.apkm 2>/dev/null || true
 
             echo "=== מתקין את APKMirror Helper ==="
-            HELPER_APK=$(ls *helper*.apk 2>/dev/null | head -n1)
-            echo "Helper APK: $HELPER_APK"
-            adb install -r "$HELPER_APK" || echo "helper install failed, exit $?"
+            adb install -r $(ls *helper*.apk) || echo "helper install failed, exit $?"
 
-            echo "=== בודק אם apkm הוא בעצם zip (bundle) ==="
-            APKM_FILE=$(ls *.apkm 2>/dev/null | head -n1)
-            echo "APKM file: $APKM_FILE"
-            file "$APKM_FILE" || true
+            echo "=== מחלץ את ה-bundle ==="
+            mkdir -p apkm_extracted && cp $(ls *.apkm) apkm_extracted/bundle.zip
 
-            echo "=== מנסה install-multiple ישירות (שיטה 1) ==="
-            mkdir -p apkm_extracted
-            cp "$APKM_FILE" apkm_extracted/bundle.zip
-            cd apkm_extracted
-            unzip -o bundle.zip
-            ls -la
-            cd ..
+            echo "=== רשימת קבצים בתוך ה-bundle ==="
+            cd apkm_extracted && unzip -o bundle.zip && ls -la && cd ..
 
-            APK_FILES=$(find apkm_extracted -name "*.apk" | tr '\n' ' ')
-            echo "APK files found inside bundle: $APK_FILES"
-
-            if [ -n "$APK_FILES" ]; then
-              adb install-multiple -r $APK_FILES || echo "install-multiple failed, exit $?"
-            else
-              echo "לא נמצאו קבצי APK בתוך ה-bundle"
-            fi
+            echo "=== מתקין את כל ה-APKs מתוך ה-bundle יחד ==="
+            adb install-multiple -r $(find apkm_extracted -name "*.apk") || echo "install-multiple failed, exit $?"
 
             echo "=== רשימת חבילות מותקנות (לבדיקה) ==="
             adb shell pm list packages | grep -i libre || echo "LibreLinkUp not found in package list"
