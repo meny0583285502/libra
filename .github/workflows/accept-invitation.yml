@@ -57,22 +57,29 @@ jobs:
             adb install -r librelinkup.apk
             echo "=== Rooting emulator and increasing heap limits ==="
             adb root
+            sleep 3
+            adb kill-server
+            sleep 2
+            adb start-server
             adb wait-for-device
             sleep 3
-            adb shell setprop dalvik.vm.heapgrowthlimit 512m
-            adb shell setprop dalvik.vm.heapsize 1024m
+            adb shell setprop dalvik.vm.heapgrowthlimit 512m || true
+            adb shell setprop dalvik.vm.heapsize 1024m || true
             echo "=== Clearing logcat buffer ==="
-            adb logcat -c
-            echo "=== Launching app ==="
-            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "monkey command failed, exit code $?"
+            adb logcat -c || true
+            echo "=== Launching app via am start ==="
+            adb shell am start -n org.nativescript.LibreLinkUp/com.tns.NativeScriptActivity || echo "am start failed, exit code $?"
+            sleep 5
+            echo "=== Fallback: also trying monkey launch (guarded) ==="
+            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "monkey fallback failed, exit code $?"
             sleep 10
             echo "=== Taking screenshot 1 (initial screen) ==="
-            adb exec-out screencap -p > screenshot_1_initial.png
+            adb exec-out screencap -p > screenshot_1_initial.png || true
             echo "=== Dumping UI hierarchy for coordinates ==="
-            adb shell uiautomator dump /sdcard/window_dump.xml
-            adb pull /sdcard/window_dump.xml ui_dump_1.xml
+            adb shell uiautomator dump /sdcard/window_dump.xml || true
+            adb pull /sdcard/window_dump.xml ui_dump_1.xml || true
             echo "=== Saving logcat errors for diagnosis ==="
-            adb logcat -d *:E > logcat_errors.log
+            adb logcat -d *:E > logcat_errors.log || true
             echo "=== Listing installed package to confirm install succeeded ==="
             adb shell pm list packages | grep -i librelinkup > package_check.log || echo "PACKAGE NOT FOUND" > package_check.log
             echo "=== Done ==="
