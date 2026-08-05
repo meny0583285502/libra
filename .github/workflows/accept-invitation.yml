@@ -1,25 +1,7 @@
-name: LibreLinkUp - Accept Invitation
+name: LibreLinkUp v4.16 - Install and Screenshot
 
 on:
   workflow_dispatch:
-    inputs:
-      email:
-        description: 'כתובת מייל של חשבון ה-follower'
-        required: true
-        type: string
-      first_name:
-        description: 'שם פרטי לרישום (אם נדרש)'
-        required: false
-        default: 'User'
-        type: string
-      stage:
-        description: 'שלב הרצה: screenshot (רק צילום מסך ראשוני) / full (ניסיון אוטומציה מלא)'
-        required: true
-        default: 'screenshot'
-        type: choice
-        options:
-          - screenshot
-          - full
 
 jobs:
   automate:
@@ -29,20 +11,20 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Download APK from latest Release
+      - name: Download APK/APKM files from latest Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download --pattern "*.apk" --output librelinkup.apk --clobber
-          ls -la librelinkup.apk
+          gh release download --pattern "*.apk" --pattern "*.apkm" --clobber
+          ls -la
 
-      - name: Enable KVM (for emulator acceleration)
+      - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Run emulator and install APK
+      - name: Run emulator, install helper + apkm, screenshot
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -52,33 +34,60 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
           disable-animations: true
           script: |
-            echo "=== Emulator boot complete, installing APK ==="
-            adb devices
-            adb install -r librelinkup.apk
-            echo "=== Clearing logcat buffer ==="
-            adb logcat -c || true
-            echo "=== Launching app via monkey ==="
-            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "monkey failed, exit code $?"
-            sleep 10
-            echo "=== Taking screenshot 1 (initial screen) ==="
-            adb exec-out screencap -p > screenshot_1_initial.png || true
-            echo "=== Dumping UI hierarchy for coordinates ==="
-            adb shell uiautomator dump /sdcard/window_dump.xml || true
-            adb pull /sdcard/window_dump.xml ui_dump_1.xml || true
-            echo "=== Saving logcat errors for diagnosis ==="
-            adb logcat -d *:E > logcat_errors.log || true
-            echo "=== Listing installed package to confirm install succeeded ==="
-            adb shell pm list packages | grep -i librelinkup > package_check.log || echo "PACKAGE NOT FOUND" > package_check.log
-            echo "=== Done ==="
+            echo "=== קבצים שהורדו ==="
+            ls -la *.apk *.apkm 2>/dev/null || true
 
-      - name: Upload screenshots and UI dump
+            echo "=== מתקין את APKMirror Helper ==="
+            HELPER_APK=$(ls *helper*.apk 2>/dev/null | head -n1)
+            echo "Helper APK: $HELPER_APK"
+            adb install -r "$HELPER_APK" || echo "helper install failed, exit $?"
+
+            echo "=== בודק אם apkm הוא בעצם zip (bundle) ==="
+            APKM_FILE=$(ls *.apkm 2>/dev/null | head -n1)
+            echo "APKM file: $APKM_FILE"
+            file "$APKM_FILE" || true
+
+            echo "=== מנסה install-multiple ישירות (שיטה 1) ==="
+            mkdir -p apkm_extracted
+            cp "$APKM_FILE" apkm_extracted/bundle.zip
+            cd apkm_extracted
+            unzip -o bundle.zip
+            ls -la
+            cd ..
+
+            APK_FILES=$(find apkm_extracted -name "*.apk" | tr '\n' ' ')
+            echo "APK files found inside bundle: $APK_FILES"
+
+            if [ -n "$APK_FILES" ]; then
+              adb install-multiple -r $APK_FILES || echo "install-multiple failed, exit $?"
+            else
+              echo "לא נמצאו קבצי APK בתוך ה-bundle"
+            fi
+
+            echo "=== רשימת חבילות מותקנות (לבדיקה) ==="
+            adb shell pm list packages | grep -i libre || echo "LibreLinkUp not found in package list"
+
+            echo "=== מפעיל את האפליקציה ==="
+            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "launch failed, exit $?"
+            sleep 10
+
+            echo "=== צילום מסך ==="
+            adb exec-out screencap -p > screenshot_login.png || true
+
+            echo "=== UI dump ==="
+            adb shell uiautomator dump /sdcard/window_dump.xml || true
+            adb pull /sdcard/window_dump.xml ui_dump_login.xml || true
+
+            echo "=== לוגים לאבחון ==="
+            adb logcat -d *:E > logcat_errors.log || true
+
+      - name: Upload results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: librelinkup-debug-output
+          name: libre-v416-install-debug
           path: |
-            screenshot_*.png
-            ui_dump_*.xml
+            screenshot_login.png
+            ui_dump_login.xml
             logcat_errors.log
-            package_check.log
           retention-days: 3
