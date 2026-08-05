@@ -11,11 +11,12 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Download APK/APKM files from latest Release
+      - name: Download APK/APKM files from Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download --pattern "*.apk" --pattern "*.apkm" --clobber
+          gh release list
+          gh release download v1.0 --pattern "*.apk" --pattern "*.apkm" --clobber
           ls -la
 
       - name: Enable KVM
