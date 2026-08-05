@@ -49,29 +49,16 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_5
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
           disable-animations: true
           script: |
             echo "=== Emulator boot complete, installing APK ==="
             adb devices
             adb install -r librelinkup.apk
-            echo "=== Rooting emulator and increasing heap limits ==="
-            adb root
-            sleep 3
-            adb kill-server
-            sleep 2
-            adb start-server
-            adb wait-for-device
-            sleep 3
-            adb shell setprop dalvik.vm.heapgrowthlimit 512m || true
-            adb shell setprop dalvik.vm.heapsize 1024m || true
             echo "=== Clearing logcat buffer ==="
             adb logcat -c || true
-            echo "=== Launching app via am start ==="
-            adb shell am start -n org.nativescript.LibreLinkUp/com.tns.NativeScriptActivity || echo "am start failed, exit code $?"
-            sleep 5
-            echo "=== Fallback: also trying monkey launch (guarded) ==="
-            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "monkey fallback failed, exit code $?"
+            echo "=== Launching app via monkey ==="
+            adb shell monkey -p org.nativescript.LibreLinkUp -c android.intent.category.LAUNCHER 1 || echo "monkey failed, exit code $?"
             sleep 10
             echo "=== Taking screenshot 1 (initial screen) ==="
             adb exec-out screencap -p > screenshot_1_initial.png || true
